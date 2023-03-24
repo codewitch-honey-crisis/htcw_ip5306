@@ -1,5 +1,9 @@
 #include <ip5306.hpp>
+#ifdef ARDUINO
 namespace arduino {
+#else
+namespace esp_idf {
+#endif
 // based on
 // https://gist.github.com/me-no-dev/7702f08dd578de5efa47caf322250b57
 
@@ -48,17 +52,30 @@ ChargeCutoffVoltage: 4.2V
   (byte & 0x02 ? 25 : 0) + \
   (byte & 0x04 ? 25 : 0) + \
   (byte & 0x08 ? 25 : 0))
-
-int ip5306_get_reg(TwoWire& i2c, uint8_t reg){
+#ifdef ARDUINO
+#define I2C_TYPE TwoWire&
+#else
+#define I2C_TYPE i2c_port_t
+#endif
+int ip5306_get_reg(I2C_TYPE i2c, uint8_t reg){
+#ifdef ARDUINO
     i2c.beginTransmission(ip5306::address);
     i2c.write(reg);
-    if(i2c.endTransmission(false) == 0 && i2c.requestFrom(0x75, 1)){
+    if(i2c.endTransmission(false) == 0 && i2c.requestFrom(ip5306::address, 1)){
         return i2c.read();
     }
     return -1;
+#else
+    uint8_t result;
+    if(ESP_OK==i2c_master_write_read_device(i2c,ip5306::address,&reg,1,&result,1,pdMS_TO_TICKS(1000))) {
+        return result;
+    }
+    return -1;
+#endif
 }
 
-int ip5306_set_reg(TwoWire& i2c, uint8_t reg, uint8_t value){
+int ip5306_set_reg(I2C_TYPE i2c, uint8_t reg, uint8_t value){
+#ifdef ARDUINO
     i2c.beginTransmission(ip5306::address);
     i2c.write(reg);
     i2c.write(value);
@@ -66,29 +83,33 @@ int ip5306_set_reg(TwoWire& i2c, uint8_t reg, uint8_t value){
         return 0;
     }
     return -1;
+#else
+    uint8_t data[] = {reg,value};
+    if(ESP_OK==i2c_master_write_to_device(i2c,ip5306::address,data,sizeof(data),pdMS_TO_TICKS(1000))) {
+        return 0;
+    }
+    return -1;
+#endif
 }
 
-uint8_t ip5306_get_bits(TwoWire& i2c, uint8_t reg, uint8_t index, uint8_t bits){
+uint8_t ip5306_get_bits(I2C_TYPE i2c, uint8_t reg, uint8_t index, uint8_t bits){
     int value = ip5306_get_reg(i2c,reg);
     if(value < 0){
-        Serial.printf("ip5306_get_bits fail: 0x%02x\n", reg);
         return 0;
     }
     return (value >> index) & ((1 << bits)-1);
 }
 
-void ip5306_set_bits(TwoWire& i2c, uint8_t reg, uint8_t index, uint8_t bits, uint8_t value){
+void ip5306_set_bits(I2C_TYPE i2c, uint8_t reg, uint8_t index, uint8_t bits, uint8_t value){
     uint8_t mask = (1 << bits) - 1;
     int v = ip5306_get_reg(i2c,reg);
     if(v < 0){
-        Serial.printf("ip5306_get_reg fail: 0x%02x\n", reg);
         return;
     }
     v &= ~(mask << index);
     v |= ((value & mask) << index);
-    if(ip5306_set_reg(i2c,reg, v)){
-        Serial.printf("ip5306_set_bits fail: 0x%02x\n", reg);
-    }
+    ip5306_set_reg(i2c,reg, v);
+    
 }
 
 bool ip5306::key_off() const {

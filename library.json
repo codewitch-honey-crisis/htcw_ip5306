@@ -1,6 +1,6 @@
 {
     "name": "htcw_ip5306",
-    "version": "0.1.0",
+    "version": "0.1.2",
     "description": "Provides support for the IP5306 power module",
     "keywords": ["power", "battery", "sleep"],
     "authors": {
@@ -8,7 +8,7 @@
         "homepage": "https://www.codeproject.com/Members/code-witch"
     },
     "license": "MIT",
-    "frameworks": ["arduino"],
+    "frameworks": ["arduino","espidf"],
     "platforms": "*",
     "repository":
     {

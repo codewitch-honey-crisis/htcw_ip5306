@@ -1,7 +1,17 @@
 #pragma once
+#if __has_include(<Arduino.h>)
 #include <Arduino.h>
 #include <Wire.h>
 namespace arduino {
+#else
+#ifdef ESP_PLATFORM
+#include <driver/i2c.h>
+namespace esp_idf {
+#else
+#error "This library requires Arduino or an ESP32"
+#endif
+#endif
+
 enum struct ip5306_shutdown {
     after_8s=0,
     after_32s=1,
@@ -49,12 +59,35 @@ enum struct ip5306_presses {
     long_press_once = 1
 };
 class ip5306 {
+#ifdef ARDUINO
     TwoWire& m_i2c;
+#else
+    i2c_port_t m_i2c;
+#endif
+    inline void do_move(ip5306& rhs) {
+        m_i2c = rhs.m_i2c;
+    }
+    ip5306(const ip5306& rhs)=delete;
+    ip5306& operator=(const ip5306& rhs)=delete;
 public:
     constexpr static const uint8_t address = 0x75;
-    inline ip5306(TwoWire& i2c=Wire) : m_i2c(i2c) {
+    inline ip5306(ip5306&& rhs) : m_i2c(rhs.m_i2c) {
+        do_move(rhs);
+    }
+    inline ip5306& operator=(ip5306&& rhs) {
+        do_move(rhs);
+        return *this;
+    }
+    inline ip5306(
+#ifdef ARDUINO
+        TwoWire& i2c=Wire
+#else
+        i2c_port_t i2c = I2C_NUM_0
+#endif
+        ) : m_i2c(i2c) {
 
     }
+    inline bool initialize() { return true;}
     bool key_off() const;
     void key_off(bool value);
     bool boost_output() const;
